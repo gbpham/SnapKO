@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { getSupabaseBrowserClient } from "../../lib/supabaseClient";
+import { logoutBackend } from "../../lib/backendClient";
+import { logoutEverywhere } from "../../lib/logoutSession";
 
 export default function AdminLayout({
   children,
@@ -43,7 +45,10 @@ export default function AdminLayout({
         // Logged in but not Admin -> Redirect to Home or Error
         console.log("User is not ADMIN, role is:", profile?.role);
         // Sign out to prevent stuck loop? Or just redirect
-        await supabase.auth.signOut();
+        await logoutEverywhere({
+          logoutBackend,
+          signOutSupabase: () => supabase.auth.signOut(),
+        });
         router.replace("/admin/login");
         return;
       }
@@ -80,7 +85,10 @@ export default function AdminLayout({
             <h1 className="text-lg font-bold text-slate-900">SnapKO Admin</h1>
             <button
               onClick={async () => {
-                await supabase.auth.signOut();
+                await logoutEverywhere({
+                  logoutBackend,
+                  signOutSupabase: () => supabase.auth.signOut(),
+                });
                 router.push("/admin/login");
               }}
               className="text-sm font-medium text-red-600 hover:text-red-500"
