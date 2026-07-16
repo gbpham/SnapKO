@@ -1,106 +1,119 @@
-"use client";
+'use client'
 
-import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { getSupabaseBrowserClient } from "../../lib/supabaseClient";
-import { logoutBackend } from "../../lib/backendClient";
-import { logoutEverywhere } from "../../lib/logoutSession";
+import { useEffect, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { BarChart3, Building2, CreditCard, LogOut, ShieldCheck, Users } from 'lucide-react'
+import { getSupabaseBrowserClient } from '../../lib/supabaseClient'
+import { loginMobile, logoutBackend } from '../../lib/backendClient'
+import { logoutEverywhere } from '../../lib/logoutSession'
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
-  const pathname = usePathname();
-  const supabase = getSupabaseBrowserClient();
+const navigation = [
+  { href: '/admin', label: 'Tổng quan', icon: BarChart3 },
+  { href: '/admin/businesses', label: 'Quán', icon: Building2 },
+  { href: '/admin/users', label: 'Người dùng', icon: Users },
+  { href: '/admin/plans', label: 'Gói cước', icon: CreditCard },
+]
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const pathname = usePathname()
+  const supabase = getSupabaseBrowserClient()
+  const isLoginPage = pathname === '/admin/login'
 
   useEffect(() => {
+    let active = true
     const checkAuth = async () => {
-      setLoading(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const isLoginPage = pathname === "/admin/login";
-
+      setLoading(true)
+      const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
-        if (!isLoginPage) {
-          router.replace("/admin/login");
-        } else {
-          setLoading(false);
+        if (active) {
+          if (!isLoginPage) router.replace('/admin/login')
+          setLoading(false)
         }
-        return;
+        return
       }
-
-      // Check Role
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", session.user.id)
-        .single();
-
-      if (profile?.role !== "ADMIN") {
-        // Logged in but not Admin -> Redirect to Home or Error
-        console.log("User is not ADMIN, role is:", profile?.role);
-        // Sign out to prevent stuck loop? Or just redirect
-        await logoutEverywhere({
-          logoutBackend,
-          signOutSupabase: () => supabase.auth.signOut(),
-        });
-        router.replace("/admin/login");
-        return;
+      const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('id', session.user.id).single()
+      if (profile?.role !== 'ADMIN') {
+        await logoutEverywhere({ logoutBackend, signOutSupabase: () => supabase.auth.signOut() })
+        if (active) router.replace('/admin/login')
+        return
       }
-
-      // Is Admin
-      if (isLoginPage) {
-        router.replace("/admin");
-      } else {
-        setLoading(false);
+      try {
+        await loginMobile(session.access_token, { fullName: profile.full_name ?? undefined })
+      } catch {
+        await logoutEverywhere({ logoutBackend, signOutSupabase: () => supabase.auth.signOut() })
+        if (active) router.replace('/admin/login')
+        return
       }
-    };
+      if (active) {
+        if (isLoginPage) router.replace('/admin')
+        setLoading(false)
+      }
+    }
+    void checkAuth()
+    return () => { active = false }
+  }, [isLoginPage, pathname, router, supabase])
 
-    checkAuth();
-  }, [pathname, router]);
-
-  // Loading Screen
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-orange-500 border-t-transparent"></div>
-          <p className="mt-2 text-sm text-gray-500">Checking permissions...</p>
+      <div className="grid min-h-screen place-items-center bg-[#F3F5F2]">
+        <div className="grid justify-items-center gap-3 text-[#26382D]">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#DDE5D7] border-t-[#E77825]" />
+          <p className="text-sm font-bold">Đang xác thực quyền quản trị…</p>
         </div>
       </div>
-    );
+    )
+  }
+
+  if (isLoginPage) return <>{children}</>
+
+  const signOut = async () => {
+    await logoutEverywhere({ logoutBackend, signOutSupabase: () => supabase.auth.signOut() })
+    router.push('/admin/login')
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-slate-900">
-      {/* Simple Admin Header */}
-      {pathname !== "/admin/login" && (
-        <header className="bg-white shadow-sm">
-          <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-            <h1 className="text-lg font-bold text-slate-900">SnapKO Admin</h1>
-            <button
-              onClick={async () => {
-                await logoutEverywhere({
-                  logoutBackend,
-                  signOutSupabase: () => supabase.auth.signOut(),
-                });
-                router.push("/admin/login");
-              }}
-              className="text-sm font-medium text-red-600 hover:text-red-500"
-            >
-              Sign Out
-            </button>
+    <div className="min-h-screen bg-[#F3F5F2] text-[#132018]">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-black/5 bg-[#132018] text-white lg:flex">
+        <div className="border-b border-white/10 px-6 py-7">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#E77825] text-white"><ShieldCheck size={22} /></div>
+            <div><p className="text-lg font-black">SnapKO</p><p className="text-xs font-semibold text-white/55">Control center</p></div>
           </div>
+        </div>
+        <nav className="grid gap-1 p-4">
+          {navigation.map((item) => {
+            const Icon = item.icon
+            const selected = item.href === '/admin' ? pathname === item.href : pathname.startsWith(item.href)
+            return (
+              <Link key={item.href} href={item.href} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition ${selected ? 'bg-white text-[#132018]' : 'text-white/65 hover:bg-white/10 hover:text-white'}`}>
+                <Icon size={18} />{item.label}
+              </Link>
+            )
+          })}
+        </nav>
+        <button onClick={signOut} className="mt-auto flex items-center gap-3 border-t border-white/10 px-8 py-6 text-sm font-bold text-white/60 hover:text-white">
+          <LogOut size={18} /> Đăng xuất
+        </button>
+      </aside>
+
+      <div className="lg:pl-64">
+        <header className="sticky top-0 z-20 border-b border-black/5 bg-[#F3F5F2]/90 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-10">
+          <div className="flex items-center justify-between gap-4">
+            <div><p className="text-xs font-black uppercase tracking-[0.18em] text-[#769532]">Vận hành hệ thống</p><p className="font-black">SnapKO Admin</p></div>
+            <button onClick={signOut} className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-bold lg:hidden"><LogOut size={16} /> Thoát</button>
+          </div>
+          <nav className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+            {navigation.map((item) => {
+              const selected = item.href === '/admin' ? pathname === item.href : pathname.startsWith(item.href)
+              return <Link key={item.href} href={item.href} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold ${selected ? 'bg-[#132018] text-white' : 'bg-white text-slate-600'}`}>{item.label}</Link>
+            })}
+          </nav>
         </header>
-      )}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {children}
-      </main>
+        <main className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-10">{children}</main>
+      </div>
     </div>
-  );
+  )
 }
