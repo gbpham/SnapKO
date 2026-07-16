@@ -30,6 +30,8 @@ import {
   loginMobile,
   logoutBackend,
 } from "@/lib/backendClient";
+import { shouldExchangeBackendSession } from "@/lib/backendSessionPolicy";
+import { logoutEverywhere } from "@/lib/logoutSession";
 
 type SubscriptionStatus = "TRIAL" | "ACTIVE" | "WARNING" | "EXPIRED" | null;
 
@@ -108,7 +110,12 @@ export default function DashboardPage() {
       }
       setUser(data.session.user);
 
-      if (!getStoredRefreshToken() && data.session.access_token) {
+      if (
+        shouldExchangeBackendSession({
+          supabaseAccessToken: data.session.access_token,
+          hasStoredBackendRefreshToken: Boolean(getStoredRefreshToken()),
+        })
+      ) {
         try {
           await loginMobile(data.session.access_token);
         } catch (e) {
@@ -189,12 +196,10 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     setBusy(true);
-    try {
-      await logoutBackend();
-    } catch (e) {
-      console.warn("Dashboard: backend logout failed:", e);
-    }
-    const { error: signOutError } = await supabase.auth.signOut();
+    const { error: signOutError } = await logoutEverywhere({
+      logoutBackend,
+      signOutSupabase: () => supabase.auth.signOut(),
+    });
     if (signOutError) setError(signOutError.message);
     setBusy(false);
   };

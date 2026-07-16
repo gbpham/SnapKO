@@ -1,0 +1,54 @@
+<h2>Chọn hướng sửa biểu đồ tồn kho</h2>
+<p class="subtitle">Vấn đề hiện tại: ngày có giá trị nhỏ như 13/06 bị thành vạch sát đáy, tooltip quá to và che cột nên nhìn rất khó.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#faf9f7;padding:18px">
+      <div style="height:190px;border:1px solid #ddd;border-radius:10px;background:#fff;padding:14px">
+        <div style="font-weight:700;margin-bottom:12px;color:#111827">Giá trị tồn kho theo ngày (VNĐ)</div>
+        <div style="display:grid;grid-template-columns:56px 1fr;gap:12px;height:130px">
+          <div style="font-size:11px;color:#64748b;display:flex;flex-direction:column;justify-content:space-between;text-align:right">
+            <span>12,000M</span><span>9,000M</span><span>6,000M</span><span>3,000M</span><span>0</span>
+          </div>
+          <div style="position:relative;border-bottom:1px solid #ddd;background:repeating-linear-gradient(to bottom,#fff 0,#fff 31px,#e5e7eb 32px)">
+            <div style="position:absolute;left:7%;bottom:0;width:13%;height:28%;background:#e9792b;border-radius:5px 5px 0 0"></div>
+            <div style="position:absolute;left:22%;bottom:0;width:13%;height:84%;background:#6b8f22;border-radius:5px 5px 0 0"></div>
+            <div style="position:absolute;left:62%;bottom:0;width:15%;height:16px;background:#e9792b;border-radius:5px 5px 0 0;box-shadow:0 -1px 0 rgba(0,0,0,.15) inset"></div>
+            <div style="position:absolute;left:79%;bottom:0;width:15%;height:8px;background:#6b8f22;border-radius:5px 5px 0 0;opacity:.95"></div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:20px;margin-top:10px;font-size:12px;color:#475569"><span>Kho</span><span>Quầy Bar</span></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Giữ bar chart, tăng khả năng đọc</h3>
+      <p>Thêm chiều cao tối thiểu cho cột nhỏ, bar size ổn định, tăng margin chart, tooltip gọn hơn và không che sát con trỏ.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#faf9f7;padding:18px">
+      <div style="height:190px;border:1px solid #ddd;border-radius:10px;background:#fff;padding:14px">
+        <div style="font-weight:700;margin-bottom:12px;color:#111827">Giá trị tồn kho theo ngày (VNĐ)</div>
+        <div style="display:grid;grid-template-columns:56px 1fr;gap:12px;height:130px">
+          <div style="font-size:11px;color:#64748b;display:flex;flex-direction:column;justify-content:space-between;text-align:right">
+            <span>12,000M</span><span>9,000M</span><span>6,000M</span><span>3,000M</span><span>0</span>
+          </div>
+          <div style="position:relative;border-bottom:1px solid #ddd;background:repeating-linear-gradient(to bottom,#fff 0,#fff 31px,#e5e7eb 32px)">
+            <svg viewBox="0 0 360 130" style="width:100%;height:100%">
+              <path d="M20 94 L100 22 L220 128 L320 127" fill="none" stroke="#e9792b" stroke-width="3"/>
+              <path d="M20 20 L100 18 L220 129 L320 129" fill="none" stroke="#6b8f22" stroke-width="3"/>
+              <circle cx="320" cy="127" r="5" fill="#e9792b"/>
+              <circle cx="320" cy="129" r="5" fill="#6b8f22"/>
+            </svg>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:20px;margin-top:10px;font-size:12px;color:#475569"><span>Kho</span><span>Quầy Bar</span></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Đổi sang line chart</h3>
+      <p>Dễ thấy điểm nhỏ hơn, nhưng mất cảm giác so sánh khối lượng tồn kho theo từng ngày.</p>
+    </div>
+  </div>
+</div>
