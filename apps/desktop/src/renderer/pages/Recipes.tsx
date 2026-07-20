@@ -80,6 +80,14 @@ export default function RecipesPage() {
 
   useEffect(() => {
     loadData();
+
+    const removeSyncListener = (window as any).electronAPI?.onSyncCompleted?.(() => {
+      loadData();
+    });
+
+    return () => {
+      removeSyncListener?.();
+    };
   }, []);
 
   async function loadData() {
