@@ -95,14 +95,14 @@ export default function SettingsPage({
   const openPricing = async () => {
     try {
       const result = await (window as any).electronAPI?.openExternal?.(
-        "https://app.snapko.vn/pricing",
+        "https://snapko.io.vn/pricing",
       );
       if (!result?.success) {
         throw new Error(result?.error || "Không thể mở trình duyệt");
       }
     } catch (err) {
       alert(
-        "Không thể mở trang nâng cấp. Vui lòng truy cập https://app.snapko.vn/pricing",
+        "Không thể mở trang nâng cấp. Vui lòng truy cập https://snapko.io.vn/pricing",
       );
       console.error("[Settings] openPricing failed:", err);
     }

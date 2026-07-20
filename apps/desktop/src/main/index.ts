@@ -806,6 +806,9 @@ function registerSyncIPC() {
     console.log("[Sync] Queue flushed, starting pull...");
 
     const result = await pullAll({ force: opts?.force });
+    if (result.success && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("sync:completed", result);
+    }
     return result;
   });
 

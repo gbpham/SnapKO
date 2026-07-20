@@ -95,8 +95,14 @@ export function useInventory() {
       loadData();
     });
 
+    const removeSyncListener = window.electronAPI.onSyncCompleted?.(() => {
+      console.log("[Inventory] Sync completed, refreshing...");
+      loadData();
+    });
+
     return () => {
       removeLogListener?.();
+      removeSyncListener?.();
     };
   }, [loadData]);
 

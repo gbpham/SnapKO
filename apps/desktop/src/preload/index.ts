@@ -146,6 +146,7 @@ export interface ElectronAPI {
   // Realtime Listeners
   onNewLog: (callback: (log: any) => void) => () => void;
   onIngredientUpdate: (callback: (ingredient: any) => void) => () => void;
+  onSyncCompleted: (callback: (result: any) => void) => () => void;
 
   // Dialog (focus-safe native confirm)
   confirmDialog: (message: string, detail?: string) => Promise<boolean>;
@@ -316,7 +317,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener("realtime:ingredient-update", handler);
   },
 
-  // ==================== SIGNAL PATTERN SYNC ====================
+  onSyncCompleted: (callback: (result: any) => void) => {
+    const handler = (_event: any, result: any) => callback(result);
+    ipcRenderer.on("sync:completed", handler);
+    return () => ipcRenderer.removeListener("sync:completed", handler);
+  },
+
+  // ==================== SIGNAL PATTERN SYNC ===================
   on: (channel: string, callback: (data?: any) => void) => {
     const handler = (_event: any, data: any) => callback(data);
     ipcRenderer.on(channel, handler);
