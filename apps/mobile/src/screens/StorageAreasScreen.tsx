@@ -20,6 +20,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface StorageArea {
   id: string;
@@ -28,9 +29,15 @@ interface StorageArea {
   isDefault: boolean;
   isActive: boolean;
   _count?: { stockLevels: number };
+  branch?: { id: string; name: string; code?: string | null; type?: string } | null;
 }
 
-export default function StorageAreasScreen() {
+interface StorageAreasScreenProps {
+  onBack?: () => void;
+}
+
+export default function StorageAreasScreen({ onBack }: StorageAreasScreenProps) {
+  const insets = useSafeAreaInsets();
   const { authState } = useAuth();
   const profile =
     authState.status === "authenticated" || authState.status === "needs_setup"
@@ -136,6 +143,7 @@ export default function StorageAreasScreen() {
             {item.isDefault ? "  ✦" : ""}
           </Text>
           <Text style={styles.areaType}>
+            {item.branch?.name ? `${item.branch.name}  ·  ` : ""}
             {item.type === "STORAGE" ? "Kho" : "Quầy phục vụ"}
             {item._count?.stockLevels ? `  ·  ${item._count.stockLevels} NL` : ""}
           </Text>
@@ -168,8 +176,16 @@ export default function StorageAreasScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Khu vực kho</Text>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 12 }]}>
+        {onBack ? (
+          <TouchableOpacity onPress={onBack} style={styles.headerBack}>
+            <Ionicons name="arrow-back" size={20} color="#E07A2F" />
+            <Text style={styles.backText}>Quay lại</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerBack} />
+        )}
+        <Text style={[styles.title, { flex: 1 }]}>{isChain ? "Khu vực & quán" : "Khu vực kho"}</Text>
         {isOwner && isChain && (
           <TouchableOpacity onPress={openCreate} style={styles.addBtn}>
             <Ionicons name="add" size={22} color="#fff" />
@@ -251,6 +267,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8,
   },
   title: { fontSize: 20, fontWeight: "700", color: "#1F2937" },
+  headerBack: { width: 78, flexDirection: "row", alignItems: "center", gap: 4 },
+  backText: { color: "#E07A2F", fontSize: 13, fontWeight: "600" },
   addBtn: {
     backgroundColor: "#E07A2F", borderRadius: 8, padding: 6,
   },

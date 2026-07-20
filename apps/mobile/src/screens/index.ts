@@ -18,6 +18,8 @@ export { default as OwnerPendingListScreen } from "./OwnerPendingListScreen";
 export { default as DashboardScreen } from "./DashboardScreen";
 export { default as SetupPendingScreen } from "./SetupPendingScreen";
 export { default as AdHocTransferScreen } from "./AdHocTransferScreen";
+export { default as ChainTransferScreen } from "./ChainTransferScreen";
+export { default as StorageAreasScreen } from "./StorageAreasScreen";
 export { default as QuickOutScreen } from "./QuickOutScreen";
 export { default as IngredientEditScreen } from "./IngredientEditScreen";
 export { default as ConfirmLogScreen } from "./ConfirmLogScreen";

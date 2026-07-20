@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { api } from "../services/api";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface TransferItem {
   ingredientId: string;
@@ -34,6 +35,7 @@ interface PendingTransfersScreenProps {
 export default function PendingTransfersScreen({
   onBack,
 }: PendingTransfersScreenProps) {
+  const insets = useSafeAreaInsets();
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,29 +76,32 @@ export default function PendingTransfersScreen({
     }
   };
 
-  const handleReject = (id: string) => {
-    Alert.prompt(
-      "Từ chối transfer",
-      "Nhập lý do từ chối (tuỳ chọn):",
-      async (reason) => {
-        setProcessingId(id);
-        try {
-          await api.post(`/inventory/transfers/${id}/reject`, {
-            reason: reason || undefined,
-          });
-          setTransfers((prev) => prev.filter((t) => t.id !== id));
-        } catch {
-          Alert.alert("Lỗi", "Không thể từ chối transfer. Thử lại sau.");
-        } finally {
-          setProcessingId(null);
-        }
-      },
-      "plain-text",
-      "",
-      "default"
-    );
+  const rejectTransfer = async (id: string) => {
+    setProcessingId(id);
+    try {
+      await api.post(`/inventory/transfers/${id}/reject`, {});
+      setTransfers((prev) => prev.filter((t) => t.id !== id));
+    } catch {
+      Alert.alert("Lỗi", "Không thể từ chối transfer. Thử lại sau.");
+    } finally {
+      setProcessingId(null);
+    }
   };
 
+  const handleReject = (id: string) => {
+    Alert.alert(
+      "Từ chối chuyển hàng",
+      "Hàng sẽ được hoàn về khu vực nguồn.",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Từ chối",
+          style: "destructive",
+          onPress: () => void rejectTransfer(id),
+        },
+      ],
+    );
+  };
   const renderItem = ({ item }: { item: Transfer }) => {
     const isProcessing = processingId === item.id;
     const itemCount = Array.isArray(item.itemsJson) ? item.itemsJson.length : 0;
@@ -118,6 +123,9 @@ export default function PendingTransfersScreen({
         <Text style={styles.meta}>
           {itemCount} mặt hàng · {date}
           {item.createdBy?.fullName ? ` · ${item.createdBy.fullName}` : ""}
+        </Text>
+        <Text style={styles.receiveHint}>
+          Chỉ cộng tồn tại nơi nhận sau khi bấm “Nhận hàng”.
         </Text>
 
         {item.notes ? (
@@ -150,7 +158,7 @@ export default function PendingTransfersScreen({
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 12 }]}>
         <TouchableOpacity onPress={onBack} style={styles.back}>
           <Text style={styles.backText}>← Quay lại</Text>
         </TouchableOpacity>
@@ -193,7 +201,8 @@ export default function PendingTransfersScreen({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#121212" },
   header: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#2A2A2A",
     flexDirection: "row",
@@ -216,7 +225,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#1A1A1A",
     borderRadius: 12,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     borderWidth: 1,
     borderColor: "#2A2A2A",
   },
@@ -224,6 +234,7 @@ const styles = StyleSheet.create({
   area: { fontSize: 15, fontWeight: "600", color: "#F5F3EF" },
   arrow: { fontSize: 15, color: "#E07A2F" },
   meta: { fontSize: 12, color: "#B8B3A8", marginBottom: 6 },
+  receiveHint: { fontSize: 12, color: "#A7C957", marginBottom: 4 },
   notes: { fontSize: 13, color: "#B8B3A8", fontStyle: "italic", marginBottom: 8 },
   actions: { flexDirection: "row", gap: 10, marginTop: 8 },
   btn: {

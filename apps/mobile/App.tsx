@@ -30,7 +30,7 @@ import {
   OwnerPendingListScreen,
   DashboardScreen,
   ProfileEditScreen,
-  AdHocTransferScreen,
+  ChainTransferScreen,
   QuickOutScreen,
   StaffManagementScreen,
   PendingTransfersScreen,
@@ -73,7 +73,8 @@ type Screen =
   | "TRANSFER"
   | "QUICK_OUT"
   | "STAFF_MANAGEMENT"
-  | "PENDING_TRANSFERS";
+  | "PENDING_TRANSFERS"
+  | "STORAGE_AREAS";
 
 function PushRegistrationWorker() {
   usePushNotifications();
@@ -354,6 +355,11 @@ function AppNavigator() {
               ? () => setCurrentScreen("STAFF_MANAGEMENT")
               : undefined
           }
+          onManageStorageAreas={
+            isOwner && profile.effectiveInventoryModel === "CHAIN"
+              ? () => setCurrentScreen("STORAGE_AREAS")
+              : undefined
+          }
         />
       );
 
@@ -361,6 +367,9 @@ function AppNavigator() {
       return (
         <StaffManagementScreen onBack={() => setCurrentScreen("SETTINGS")} />
       );
+
+    case "STORAGE_AREAS":
+      return <StorageAreasScreen onBack={() => setCurrentScreen("SETTINGS")} />;
 
     case "PROFILE_EDIT":
       return (
@@ -400,7 +409,7 @@ function AppNavigator() {
 
     case "TRANSFER":
       return (
-        <AdHocTransferScreen
+        <ChainTransferScreen
           onBack={() => setCurrentScreen("DASHBOARD")}
           onSuccess={() => setCurrentScreen("DASHBOARD")}
         />
