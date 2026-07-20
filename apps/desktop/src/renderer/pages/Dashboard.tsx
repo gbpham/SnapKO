@@ -13,6 +13,7 @@ import { EmployeesTab } from "./tabs/EmployeesTab";
 import IngredientsPage from "./IngredientsPage";
 import RecipesPage from "./Recipes";
 import ReportsPage from "./ReportsPage";
+import ChainOperationsPage from "./ChainOperationsPage";
 import SettingsPage from "./SettingsPage";
 import ProfileEditPage from "./ProfileEditPage";
 import { dashboardStyles } from "../styles/theme";
@@ -25,6 +26,7 @@ import {
   ChefHat,
   Settings,
   TrendingUp,
+  ArrowRightLeft,
 } from "lucide-react";
 
 type TabId =
@@ -34,10 +36,31 @@ type TabId =
   | "ingredients"
   | "recipes"
   | "reports"
-  | "settings";
+  | "settings"
+  | "chain";
 
 interface DashboardProps {
   user: User;
+}
+
+function ReadOnlyWorkspace({ title, operationalState }: { title: string; operationalState?: string | null }) {
+  const needsRebaseline = operationalState === "WAREHOUSE_REBASELINE_REQUIRED";
+  const message = needsRebaseline
+    ? "Tài khoản vừa được kích hoạt lại sau thời gian hết hạn. Hãy hoàn tất một lần kiểm kho tổng để đồng bộ lại số tồn trước khi chỉnh sửa dữ liệu."
+    : "Tài khoản đang ở chế độ chỉ đọc nên chưa thể chỉnh sửa dữ liệu tại đây.";
+
+  return (
+    <section style={{ maxWidth: 760, margin: "28px auto", padding: 28, border: "1px solid #f1c27d", borderRadius: 14, background: "#fffaf1", color: "#4a3216" }}>
+      <h2 style={{ margin: "0 0 10px", fontSize: 22 }}>{title} đang ở chế độ chỉ đọc</h2>
+      <p style={{ margin: "0 0 14px", lineHeight: 1.6 }}>{message}</p>
+      {needsRebaseline && (
+        <p style={{ margin: 0, lineHeight: 1.6 }}>
+          Vào <strong>Tồn kho</strong> để thực hiện kiểm kho đầy đủ, sau đó bấm <strong>Đồng bộ</strong>.
+          Hoàn tất xong, mở lại tab này để thêm hoặc sửa dữ liệu.
+        </p>
+      )}
+    </section>
+  );
 }
 
 export function Dashboard({ user }: DashboardProps) {
@@ -62,6 +85,7 @@ export function Dashboard({ user }: DashboardProps) {
   const isOwner = profile?.role === "OWNER";
   const isManager = profile?.role === "BRANCH_MANAGER";
   const readOnly = profile?.read_only === true;
+  const isChain = profile?.inventory_model === "CHAIN" && canUseCustomStorageAreas;
 
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [editingProfile, setEditingProfile] = useState(false);
@@ -146,6 +170,7 @@ export function Dashboard({ user }: DashboardProps) {
         </span>
       ),
     },
+    ...(isChain ? [{ id: "chain" as const, label: "Điều phối Chain", icon: <ArrowRightLeft size={16} /> }] : []),
     ...(isOwner
       ? [
           { id: "ingredients" as const, label: "Nguyên liệu", icon: <Leaf size={16} /> },
@@ -159,14 +184,14 @@ export function Dashboard({ user }: DashboardProps) {
   const openPricing = async () => {
     try {
       const result = await (window as any).electronAPI?.openExternal?.(
-        "https://app.snapko.vn/pricing"
+        "https://snapko.io.vn/pricing"
       );
       if (!result?.success) {
         throw new Error(result?.error || "Không thể mở trình duyệt");
       }
     } catch (err: any) {
       alert(
-        "Không thể mở trang nâng cấp. Vui lòng truy cập https://app.snapko.vn/pricing"
+        "Không thể mở trang nâng cấp. Vui lòng truy cập https://snapko.io.vn/pricing"
       );
       console.error("[Dashboard] openPricing failed:", err);
     }
@@ -318,9 +343,29 @@ export function Dashboard({ user }: DashboardProps) {
           />
         )}
 
-        {activeTab === "ingredients" && isOwner && !readOnly && <IngredientsPage />}
+        {activeTab === "chain" && isChain && <ChainOperationsPage />}
 
-        {activeTab === "recipes" && isOwner && !readOnly && <RecipesPage />}
+        {activeTab === "ingredients" && isOwner && (
+          readOnly ? (
+            <ReadOnlyWorkspace
+              title="Nguyên liệu"
+              operationalState={profile?.operational_state}
+            />
+          ) : (
+            <IngredientsPage />
+          )
+        )}
+
+        {activeTab === "recipes" && isOwner && (
+          readOnly ? (
+            <ReadOnlyWorkspace
+              title="Công thức"
+              operationalState={profile?.operational_state}
+            />
+          ) : (
+            <RecipesPage />
+          )
+        )}
 
         {activeTab === "reports" && canUseAdvancedReports && (
           <ReportsPage

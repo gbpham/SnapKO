@@ -69,6 +69,7 @@ interface SettingsScreenProps {
   onLogout?: () => void;
   onEditProfile?: () => void;
   onManageStaff?: () => void;
+  onManageStorageAreas?: () => void;
 }
 
 export default function SettingsScreen({
@@ -76,6 +77,7 @@ export default function SettingsScreen({
   onLogout,
   onEditProfile,
   onManageStaff: _onManageStaff,
+  onManageStorageAreas,
 }: SettingsScreenProps) {
   const { signOut, authState, refreshProfile } = useAuth();
   const { syncModel } = useInventoryModel();
@@ -465,6 +467,23 @@ export default function SettingsScreen({
           </View>
         )}
 
+        {isOwner && model === "CHAIN" && onManageStorageAreas && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Điều phối chuỗi</Text>
+            <View style={styles.card}>
+              <TouchableOpacity style={styles.menuRow} onPress={onManageStorageAreas}>
+                <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                  <Ionicons name="business-outline" size={18} color={COLORS.success} style={{ marginRight: 10 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuRowText}>Khu vực & kho của các quán</Text>
+                    <Text style={styles.hintTextSmall}>Xem điểm nguồn/đích trước khi tạo phiếu chuyển.</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
         {/* Data Configuration - Owner Only */}
         {isOwner && (
           <View style={styles.section}>

@@ -1320,7 +1320,7 @@ export default function DashboardScreen({
             }}
           >
             3 Snaps - Thao tác nhanh{" "}
-            {model === "CHAIN" ? "(Nhiều khu)" : isStandard ? "(Kho Kép)" : "(Kho Đơn)"}
+            {model === "CHAIN" ? "(Điều phối chuỗi)" : isStandard ? "(Kho Kép)" : "(Kho Đơn)"}
           </Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
             {/* 📸 IMPORT SNAP */}
@@ -1430,7 +1430,7 @@ export default function DashboardScreen({
                       fontSize: 12,
                     }}
                   >
-                    Cấp Hàng Khẩn
+                    {model === "CHAIN" ? "Chuyển kho / quán" : "Cấp hàng khẩn"}
                   </Text>
                 </Pressable>
               )}
