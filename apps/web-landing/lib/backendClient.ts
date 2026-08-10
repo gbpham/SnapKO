@@ -122,7 +122,20 @@ export async function apiFetch<T>(
     res = await makeReq(accessToken);
   }
 
-  if (!res.ok) throw new Error(`apiFetch ${res.status}: ${path}`);
+  if (!res.ok) {
+    let errorMsg = `apiFetch ${res.status}: ${path}`;
+    try {
+      const errJson = await res.json();
+      if (errJson?.message) {
+        errorMsg = Array.isArray(errJson.message)
+          ? errJson.message.join(", ")
+          : errJson.message;
+      } else if (errJson?.error) {
+        errorMsg = errJson.error;
+      }
+    } catch {}
+    throw new Error(errorMsg);
+  }
   const json = await res.json();
   return (json?.data ?? json) as T;
 }

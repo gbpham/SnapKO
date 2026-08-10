@@ -96,6 +96,9 @@ export default function DashboardPage() {
   const [busy, setBusy] = useState(false);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
   const [profileRole, setProfileRole] = useState<string | null>(null);
+  const [newBusinessName, setNewBusinessName] = useState("");
+  const [isCreatingBusiness, setIsCreatingBusiness] = useState(false);
+  const [createBusinessError, setCreateBusinessError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -219,6 +222,47 @@ export default function DashboardPage() {
       setError(friendlyError(e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleCreateBusinessInDashboard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBusinessName.trim()) return;
+
+    setIsCreatingBusiness(true);
+    setCreateBusinessError(null);
+
+    try {
+      await apiFetch("/businesses", {
+        method: "POST",
+        body: JSON.stringify({ name: newBusinessName.trim() }),
+      });
+
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.access_token) {
+        await loginMobile(data.session.access_token);
+      }
+
+      const profile = await apiFetch<BackendProfile>("/profiles/me");
+      if (profile?.business) {
+        setBusinessInfo({
+          tier: profile.business.tier,
+          effective_tier:
+            profile.business.effectiveTier ?? profile.business.tier ?? "FREE",
+          subscription_status: profile.business.subscriptionStatus ?? null,
+          days_remaining: Math.max(0, profile.business.daysRemaining ?? 0),
+          subscription_expires_at:
+            profile.business.subscriptionExpiresAt ?? null,
+          chain_outlet_limit: profile.business.chainOutletLimit ?? 0,
+        });
+      }
+      setNewBusinessName("");
+    } catch (err) {
+      setCreateBusinessError(
+        err instanceof Error ? err.message : "Không thể khởi tạo cửa hàng"
+      );
+    } finally {
+      setIsCreatingBusiness(false);
     }
   };
 
@@ -356,6 +400,54 @@ export default function DashboardPage() {
             Quản lý yêu cầu tham gia, gói cước và tải ứng dụng SnapKO.
           </p>
         </motion.div>
+
+        {!businessInfo && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 rounded-2xl border border-[#E07A2F]/30 bg-gradient-to-r from-orange-50 to-amber-50 p-6 shadow-sm"
+          >
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#E07A2F] text-white">
+                  <Building2 className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[#1E1E1E]">
+                    Tài khoản của bạn chưa thuộc Cửa hàng / Quán nào
+                  </h3>
+                  <p className="text-sm text-[#6F6B63]">
+                    Hãy khởi tạo tên Cửa hàng của bạn để kích hoạt đầy đủ tính năng và thanh toán gói cước.
+                  </p>
+                </div>
+              </div>
+              <form
+                onSubmit={handleCreateBusinessInDashboard}
+                className="flex flex-col gap-2 sm:flex-row sm:items-center"
+              >
+                <input
+                  type="text"
+                  value={newBusinessName}
+                  onChange={(e) => setNewBusinessName(e.target.value)}
+                  placeholder="Nhập tên quán của bạn..."
+                  required
+                  disabled={isCreatingBusiness}
+                  className="rounded-xl border border-[#E0DCD5] bg-white px-4 py-2.5 text-sm focus:border-[#E07A2F] focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={isCreatingBusiness || !newBusinessName.trim()}
+                  className="rounded-xl bg-[#E07A2F] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#C2410C] disabled:opacity-50"
+                >
+                  {isCreatingBusiness ? "Đang tạo..." : "Khởi tạo Quán"}
+                </button>
+              </form>
+            </div>
+            {createBusinessError && (
+              <p className="mt-2 text-xs text-red-600">{createBusinessError}</p>
+            )}
+          </motion.div>
+        )}
 
         <div className="mb-8 grid gap-4 md:grid-cols-3">
           <motion.div
