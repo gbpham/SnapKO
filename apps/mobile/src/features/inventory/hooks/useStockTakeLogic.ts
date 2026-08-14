@@ -28,6 +28,7 @@ import {
 import { syncQueue } from "../../../services/syncQueue";
 import { getDb } from "../../../db";
 import { checkPerfectScoreTrap } from "@snapko/shared";
+import { canSaveFullStockCount } from "../services/aiOcrReview";
 
 // =============================================
 // VARIANCE THRESHOLDS (per updated .antigravityrules)
@@ -46,9 +47,9 @@ interface StockCheckItem extends ParsedStockItem {
   ingredient_id?: string;
   // Stock calculation fields (4-step logic)
   stock_start: number; // Step 1: Current system stock
-  import_qty: number; // Step 2: AI-detected import from Warehouse
+  import_qty: number | null; // Step 2: AI-detected import from Warehouse
   theoretical_after_import: number; // Step 3: stock_start + import_qty
-  actual_qty: number; // From AI: Tồn cuối
+  actual_qty: number | null; // From AI: Tồn cuối
   variance: number; // Step 4: actual - theoretical_after_import
   variance_percentage: number;
   // Variance type
@@ -79,6 +80,7 @@ interface StockTakeState {
   // Anti-Fraud tracking
   isPerfectScoreTrap: boolean;
   perfectScoreShown: boolean;
+  reviewRequired: boolean;
 }
 
 const initialState: StockTakeState = {
@@ -94,6 +96,7 @@ const initialState: StockTakeState = {
   itemsWithImport: [],
   isPerfectScoreTrap: false,
   perfectScoreShown: false,
+  reviewRequired: false,
 };
 
 export interface UseStockTakeLogicReturn {
@@ -150,8 +153,16 @@ export function useStockTakeLogic(): UseStockTakeLogicReturn {
     );
     const reasonOk = reasonItems.every((item) => item.variance_reason);
 
-    return evidenceOk && reasonOk;
-  }, [state.items]);
+    const ocrValuesAreSafe = canSaveFullStockCount(
+      state.items.map((item) => ({
+        quantity: item.actual_qty,
+        needs_review: item.needs_review,
+      })),
+      state.reviewRequired,
+    );
+
+    return ocrValuesAreSafe && evidenceOk && reasonOk;
+  }, [state.items, state.reviewRequired]);
 
   const selectArea = useCallback(
     (areaId: string, areaType: "warehouse" | "bar") => {
@@ -209,22 +220,19 @@ export function useStockTakeLogic(): UseStockTakeLogicReturn {
             : 0;
 
           // Step 2: Import_Qty = AI reads from "Nhập" column (0 if empty)
-          const aiItem = item as unknown as {
-            import_qty?: number;
-            stock_qty?: number;
-          };
-          const importQty = aiItem.import_qty || 0;
+          const importQty = item.import_qty ?? null;
 
           // Step 3: Theoretical (New) = Stock Start + Import_Qty
-          const theoreticalAfterImport = stockStart + importQty;
+          const theoreticalAfterImport = stockStart + (importQty ?? 0);
 
           // Step 4: Actual = AI đọc từ cột "Tồn cuối"
-          const actualQty = aiItem.stock_qty || item.quantity || 0;
+          const actualQty = item.quantity;
 
           // Step 4: Variance = Actual - Theoretical (New)
-          const variance = actualQty - theoreticalAfterImport;
+          const variance =
+            actualQty === null ? 0 : actualQty - theoreticalAfterImport;
           const variancePercentage =
-            theoreticalAfterImport > 0
+            actualQty !== null && theoreticalAfterImport > 0
               ? Math.abs((variance / theoreticalAfterImport) * 100)
               : 0;
 
@@ -257,7 +265,7 @@ export function useStockTakeLogic(): UseStockTakeLogicReturn {
 
         // Find items with imports for Implicit Transfer creation
         const itemsWithImport = processedItems.filter(
-          (item) => item.import_qty > 0
+          (item) => (item.import_qty ?? 0) > 0
         );
 
         // Warnings
@@ -278,6 +286,7 @@ export function useStockTakeLogic(): UseStockTakeLogicReturn {
           missingItems: [],
           hasImplicitTransfers: itemsWithImport.length > 0,
           itemsWithImport,
+          reviewRequired: result.reviewRequired === true,
         }));
       } catch (error) {
         setState((prev) => ({
@@ -313,6 +322,8 @@ export function useStockTakeLogic(): UseStockTakeLogicReturn {
 
       items[index] = {
         ...item,
+        quantity: actualQty,
+        needs_review: false,
         actual_qty: actualQty,
         variance,
         variance_percentage: Math.round(variancePercentage * 100) / 100,
@@ -425,7 +436,7 @@ export function useStockTakeLogic(): UseStockTakeLogicReturn {
           const barAreaId = state.selectedAreaId || "bar_default";
 
           for (const item of state.itemsWithImport) {
-            if (item.ingredient_id && item.import_qty > 0) {
+            if (item.ingredient_id && (item.import_qty ?? 0) > 0) {
               const transferId = `transfer_${Date.now()}_${Math.random()
                 .toString(36)
                 .substring(7)}`;

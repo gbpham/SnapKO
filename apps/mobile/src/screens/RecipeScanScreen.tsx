@@ -246,11 +246,18 @@ export default function RecipeScanScreen({
         name: (res.items[0] as any)?.recipe_name || "",
         category: (res.items[0] as any)?.category || "",
         price: (res.items[0] as any)?.price || 0,
-        ingredients: res.items.map(item => ({
-          name: item.ingredient_name,
-          quantity: item.stock_qty,
-          unit: item.unit
-        })),
+        ingredients: res.items.map(item => {
+          if (item.stock_qty === null) {
+            throw new Error(
+              `Chưa đọc được định lượng của "${item.ingredient_name}". Vui lòng chụp lại hoặc nhập thủ công.`,
+            );
+          }
+          return {
+            name: item.ingredient_name,
+            quantity: item.stock_qty,
+            unit: item.unit,
+          };
+        }),
         confidence: res.items.reduce((acc, curr) => acc + curr.confidence, 0) / res.items.length || 0
       };
 

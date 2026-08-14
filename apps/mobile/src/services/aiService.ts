@@ -60,12 +60,38 @@ function logUnexpectedAiError(label: string, error: unknown): void {
 // IMAGE COMPRESSION
 // =============================================
 
-const IMAGE_CONFIG = {
-  maxWidth: 1024,
-  maxHeight: 1024,
-  quality: 0.7,
-  format: ImageManipulator.SaveFormat.JPEG,
+export interface AiImageProfile {
+  maxDimension: number;
+  quality: number;
+  format: typeof ImageManipulator.SaveFormat.JPEG;
+}
+
+const IMAGE_PROFILES: Record<AiParseType, AiImageProfile> = {
+  STOCK_CHECK: {
+    maxDimension: 1800,
+    quality: 0.8,
+    format: ImageManipulator.SaveFormat.JPEG,
+  },
+  IMPORT: {
+    maxDimension: 1600,
+    quality: 0.78,
+    format: ImageManipulator.SaveFormat.JPEG,
+  },
+  SALES: {
+    maxDimension: 1600,
+    quality: 0.78,
+    format: ImageManipulator.SaveFormat.JPEG,
+  },
+  RECIPE: {
+    maxDimension: 1600,
+    quality: 0.78,
+    format: ImageManipulator.SaveFormat.JPEG,
+  },
 };
+
+export function getAiImageProfile(type: AiParseType): AiImageProfile {
+  return IMAGE_PROFILES[type];
+}
 
 // =============================================
 // TYPES — Match backend /ai/parse responses
@@ -74,10 +100,10 @@ const IMAGE_CONFIG = {
 export interface ParsedInvoiceItem {
   ingredient_id?: string;
   ingredient_name: string;
-  quantity: number;
+  quantity: number | null;
   unit: string;
-  unit_price: number;
-  total_price: number;
+  unit_price: number | null;
+  total_price: number | null;
   confidence: number;
 }
 
@@ -97,8 +123,8 @@ export interface ParsedSalesItem {
   raw_name?: string;
   matched_recipe_name?: string | null;
   recipe_id?: string;
-  quantity_sold: number;
-  unit_price?: number;
+  quantity_sold: number | null;
+  unit_price?: number | null;
   total_revenue?: number | null;
   confidence: number;
   row_index?: number;
@@ -136,8 +162,8 @@ export interface ParsedSalesResponse extends AiResponseMetadata {
 export interface ParsedStockItem {
   ingredient_id?: string;
   ingredient_name: string;
-  quantity: number;
-  import_qty?: number;
+  quantity: number | null;
+  import_qty?: number | null;
   unit?: string;
   confidence: number;
   needs_review: boolean;
@@ -164,8 +190,8 @@ export interface ParsedStockResponse extends AiResponseMetadata {
 
 export type ParsedHandwritingItem = {
   ingredient_name: string;
-  stock_qty: number;
-  import_qty: number;
+  stock_qty: number | null;
+  import_qty: number | null;
   unit: string;
   confidence: number;
   needs_review: boolean;
@@ -178,7 +204,7 @@ export type ParsedHandwritingItem = {
   review_reason?: string;
 };
 
-type AiParseType = "IMPORT" | "SALES" | "STOCK_CHECK" | "RECIPE";
+export type AiParseType = "IMPORT" | "SALES" | "STOCK_CHECK" | "RECIPE";
 export type AiQualityMode = "standard" | "high_accuracy";
 
 export interface AiQuotaMetadata {
@@ -201,13 +227,46 @@ interface AiParseRequest {
   qualityMode?: AiQualityMode;
 }
 
-interface AiResponseMetadata {
+export type AiValidationIssueCode =
+  | "NO_ROWS"
+  | "MISSING_STT"
+  | "DUPLICATE_STT_CONFLICT"
+  | "MISSING_NAME"
+  | "UNKNOWN_QUANTITY"
+  | "UNKNOWN_MONEY"
+  | "INCOMPLETE_PAGE"
+  | "TRUNCATED_OUTPUT"
+  | "INVALID_QUANTITY"
+  | "INVALID_MONEY"
+  | "INVALID_DATE"
+  | "ROW_ORDER_INVALID"
+  | "QTY_SUM_MISMATCH"
+  | "LINE_TOTAL_MISMATCH"
+  | "REVENUE_SUM_MISMATCH"
+  | "GRAND_TOTAL_MISMATCH"
+  | "UNVERIFIED_WITHOUT_TOTALS"
+  | "UNMATCHED_ENTITY"
+  | "AMBIGUOUS_ENTITY_MATCH";
+
+export interface AiValidationIssue {
+  code: AiValidationIssueCode;
+  rowIndex?: number;
+  stt?: string | null;
+  field?: string;
+}
+
+export interface AiResponseMetadata {
   quota?: AiQuotaMetadata;
   quotaPreview?: AiQuotaMetadata;
   scanChargeToken?: string;
   qualityMode?: AiQualityMode;
   model?: string;
   canRetryHighAccuracy?: boolean;
+  pipelineVersion?: "v2";
+  providerPath?: string;
+  reviewRequired?: boolean;
+  validationIssues?: AiValidationIssue[];
+  latencyMs?: number;
 }
 
 // =============================================
@@ -215,12 +274,13 @@ interface AiResponseMetadata {
 // =============================================
 
 class AIService {
-  async compressImage(uri: string): Promise<string> {
+  async compressImage(uri: string, type: AiParseType): Promise<string> {
     try {
+      const profile = getAiImageProfile(type);
       const result = await ImageManipulator.manipulateAsync(
         uri,
-        [{ resize: { width: IMAGE_CONFIG.maxWidth, height: IMAGE_CONFIG.maxHeight } }],
-        { compress: IMAGE_CONFIG.quality, format: IMAGE_CONFIG.format },
+        [{ resize: { width: profile.maxDimension } }],
+        { compress: profile.quality, format: profile.format },
       );
       return result.uri;
     } catch (error) {
@@ -255,7 +315,7 @@ class AIService {
     qualityMode: AiQualityMode = "standard",
   ): Promise<ParsedInvoiceResponse> {
     try {
-      const compressedUri = await this.compressImage(imageUri);
+      const compressedUri = await this.compressImage(imageUri, "IMPORT");
       const base64 = await this.imageToBase64(compressedUri);
       return await this.parse<ParsedInvoiceResponse>({
         type: "IMPORT",
@@ -280,7 +340,7 @@ class AIService {
     qualityMode: AiQualityMode = "standard",
   ): Promise<ParsedSalesResponse> {
     try {
-      const compressedUri = await this.compressImage(imageUri);
+      const compressedUri = await this.compressImage(imageUri, "SALES");
       const base64 = await this.imageToBase64(compressedUri);
       return await this.parse<ParsedSalesResponse>({
         type: "SALES",
@@ -308,7 +368,7 @@ class AIService {
     qualityMode: AiQualityMode = "standard",
   ): Promise<ParsedStockResponse> {
     try {
-      const compressedUri = await this.compressImage(imageUri);
+      const compressedUri = await this.compressImage(imageUri, "STOCK_CHECK");
       const base64 = await this.imageToBase64(compressedUri);
       return await this.parse<ParsedStockResponse>({
         type: "STOCK_CHECK",
@@ -362,7 +422,7 @@ class AIService {
       const items: ParsedHandwritingItem[] = (res.items ?? []).map((it) => ({
         ingredient_name: it.ingredient_name,
         stock_qty: it.quantity,
-        import_qty: it.import_qty ?? 0,
+        import_qty: it.import_qty ?? null,
         unit: it.unit ?? "",
         confidence: it.confidence,
         needs_review: it.needs_review,
@@ -389,6 +449,11 @@ class AIService {
         qualityMode: res.qualityMode,
         model: res.model,
         canRetryHighAccuracy: res.canRetryHighAccuracy,
+        pipelineVersion: res.pipelineVersion,
+        providerPath: res.providerPath,
+        reviewRequired: res.reviewRequired,
+        validationIssues: res.validationIssues,
+        latencyMs: res.latencyMs,
       };
     } catch (err: any) {
       if (err instanceof QuotaExceededError) throw err;

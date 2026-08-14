@@ -19,6 +19,8 @@ jest.mock("../services/api", () => ({
 
 import {
   confirmAiResultCharge,
+  getAiImageProfile,
+  parseHandwritingMultiWithAI,
   parseInvoiceMultiWithAI,
 } from "../services/aiService";
 import { api } from "../services/api";
@@ -52,6 +54,74 @@ describe("aiService expected network failures", () => {
 
     expect(api.post).toHaveBeenCalledWith("/scans/confirm-ai-result", {
       token: "scan-token",
+    });
+  });
+
+  it("preserves unknown and explicit-zero stock values with V2 review metadata", async () => {
+    (api.post as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      items: [
+        {
+          ingredient_name: "Bia lon",
+          quantity: null,
+          import_qty: null,
+          unit: "lon",
+          confidence: 0.42,
+          needs_review: true,
+        },
+        {
+          ingredient_name: "Nước ngọt",
+          quantity: 0,
+          import_qty: 0,
+          unit: "chai",
+          confidence: 0.99,
+          needs_review: false,
+        },
+      ],
+      confidence: 0.7,
+      items_needing_review: 1,
+      warnings: [],
+      reviewRequired: true,
+      pipelineVersion: "v2",
+      providerPath: "modal->gemini-repair",
+      validationIssues: [
+        { code: "UNKNOWN_QUANTITY", rowIndex: 0, field: "quantity" },
+      ],
+      latencyMs: 1234,
+    });
+
+    const result = await parseHandwritingMultiWithAI(
+      ["base64-image"],
+      "business-1",
+      "SIMPLE",
+      "STORAGE",
+    );
+
+    expect(result.items[0]).toMatchObject({ stock_qty: null, import_qty: null });
+    expect(result.items[1]).toMatchObject({ stock_qty: 0, import_qty: 0 });
+    expect(result).toMatchObject({
+      reviewRequired: true,
+      pipelineVersion: "v2",
+      providerPath: "modal->gemini-repair",
+      latencyMs: 1234,
+    });
+    expect(result.validationIssues).toEqual([
+      { code: "UNKNOWN_QUANTITY", rowIndex: 0, field: "quantity" },
+    ]);
+  });
+
+  it("uses document-specific image profiles", () => {
+    expect(getAiImageProfile("STOCK_CHECK")).toMatchObject({
+      maxDimension: 1800,
+      quality: 0.8,
+    });
+    expect(getAiImageProfile("IMPORT")).toMatchObject({
+      maxDimension: 1600,
+      quality: 0.78,
+    });
+    expect(getAiImageProfile("SALES")).toMatchObject({
+      maxDimension: 1600,
+      quality: 0.78,
     });
   });
 });

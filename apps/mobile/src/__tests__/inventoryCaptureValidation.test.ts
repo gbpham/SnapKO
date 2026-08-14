@@ -1,6 +1,7 @@
 import {
   getVolumeWeightFeedback,
   parseNumericField,
+  parseNullableNumericField,
 } from "../screens/inventoryCaptureValidation";
 
 describe("getVolumeWeightFeedback", () => {
@@ -60,5 +61,16 @@ describe("parseNumericField", () => {
   it("falls back to zero for empty or non-number text", () => {
     expect(parseNumericField("")).toBe(0);
     expect(parseNumericField("abc")).toBe(0);
+  });
+});
+
+describe("parseNullableNumericField", () => {
+  it("keeps blank or invalid OCR corrections unknown", () => {
+    expect(parseNullableNumericField("")).toBeNull();
+    expect(parseNullableNumericField("abc")).toBeNull();
+  });
+
+  it("preserves an explicit zero", () => {
+    expect(parseNullableNumericField("0")).toBe(0);
   });
 });

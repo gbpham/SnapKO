@@ -9,6 +9,13 @@ export function parseNumericField(text: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export function parseNullableNumericField(text: string): number | null {
+  const normalized = text.trim().replace(",", ".");
+  if (!normalized) return null;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function getVolumeWeightFeedback(params: {
   baseUnit?: string | null;
   inputUnit?: string | null;
