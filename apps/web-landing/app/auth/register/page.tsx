@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
-import { loginMobile } from "@/lib/backendClient";
+import { apiFetch, loginMobile } from "@/lib/backendClient";
 import { FaGoogle } from "react-icons/fa";
 
 /**
@@ -96,11 +96,21 @@ export default function RegisterPage() {
             await loginMobile(authData.session.access_token, {
               fullName: fullName.trim(),
             });
+
+            // Automatically create business/store for new user
+            if (businessName.trim()) {
+              await apiFetch("/businesses", {
+                method: "POST",
+                body: JSON.stringify({ name: businessName.trim() }),
+              }).catch((bErr) => {
+                console.error("AUTH: automatic business creation failed:", bErr);
+              });
+            }
           } catch (exchangeErr) {
             console.error("AUTH: login-mobile exchange failed:", exchangeErr);
           }
         }
-        // If email confirmation is required, profile will provision on next login.
+        // If email confirmation is required, profile & business will provision on next login.
         setSuccess(true);
       }
     } catch (err) {

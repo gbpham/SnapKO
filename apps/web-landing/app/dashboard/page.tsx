@@ -17,9 +17,13 @@ import {
   Monitor,
   MinusCircle,
   PlusCircle,
+  Plus,
   RefreshCw,
   ShieldCheck,
+  Store,
+  User as UserIcon,
   Users,
+  X,
   XCircle,
 } from "lucide-react";
 
@@ -49,6 +53,7 @@ type BackendProfile = {
   businessId: string | null;
   business?: {
     id: string;
+    name?: string;
     tier: string;
     effectiveTier?: string;
     subscriptionStatus?: SubscriptionStatus;
@@ -67,6 +72,8 @@ type BackendPendingProfile = {
 };
 
 type BusinessInfo = {
+  id?: string;
+  name?: string;
   tier: string;
   effective_tier: string;
   subscription_status: SubscriptionStatus;
@@ -96,6 +103,12 @@ export default function DashboardPage() {
   const [busy, setBusy] = useState(false);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
   const [profileRole, setProfileRole] = useState<string | null>(null);
+  const [newBusinessName, setNewBusinessName] = useState("");
+  const [isCreatingBusiness, setIsCreatingBusiness] = useState(false);
+  const [createBusinessError, setCreateBusinessError] = useState<string | null>(null);
+
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [createSuccessMsg, setCreateSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -126,24 +139,44 @@ export default function DashboardPage() {
       }
 
       try {
-        const profile = await apiFetch<BackendProfile>("/profiles/me");
+        let currentProfile = await apiFetch<BackendProfile>("/profiles/me");
 
-        if (profile?.role === "ADMIN") {
+        if (currentProfile?.role === "ADMIN") {
           router.push("/admin");
           return;
         }
-        setProfileRole(profile?.role ?? null);
+        setProfileRole(currentProfile?.role ?? null);
 
-        if (profile?.business && mounted) {
+        // Auto-provision business if user metadata has business_name but user doesn't have a business yet
+        if (
+          !currentProfile?.business &&
+          data.session.user.user_metadata?.business_name
+        ) {
+          try {
+            await apiFetch("/businesses", {
+              method: "POST",
+              body: JSON.stringify({
+                name: data.session.user.user_metadata.business_name,
+              }),
+            });
+            currentProfile = await apiFetch<BackendProfile>("/profiles/me");
+          } catch (autoErr) {
+            console.error("Auto business creation failed:", autoErr);
+          }
+        }
+
+        if (currentProfile?.business && mounted) {
           setBusinessInfo({
-            tier: profile.business.tier,
+            id: currentProfile.business.id,
+            name: currentProfile.business.name,
+            tier: currentProfile.business.tier,
             effective_tier:
-              profile.business.effectiveTier ?? profile.business.tier ?? "FREE",
-            subscription_status: profile.business.subscriptionStatus ?? null,
-            days_remaining: Math.max(0, profile.business.daysRemaining ?? 0),
+              currentProfile.business.effectiveTier ?? currentProfile.business.tier ?? "FREE",
+            subscription_status: currentProfile.business.subscriptionStatus ?? null,
+            days_remaining: Math.max(0, currentProfile.business.daysRemaining ?? 0),
             subscription_expires_at:
-              profile.business.subscriptionExpiresAt ?? null,
-            chain_outlet_limit: profile.business.chainOutletLimit ?? 0,
+              currentProfile.business.subscriptionExpiresAt ?? null,
+            chain_outlet_limit: currentProfile.business.chainOutletLimit ?? 0,
           });
         }
       } catch (e) {
@@ -219,6 +252,49 @@ export default function DashboardPage() {
       setError(friendlyError(e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleCreateBusinessInDashboard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBusinessName.trim()) return;
+
+    setIsCreatingBusiness(true);
+    setCreateBusinessError(null);
+
+    try {
+      await apiFetch("/businesses", {
+        method: "POST",
+        body: JSON.stringify({ name: newBusinessName.trim() }),
+      });
+
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.access_token) {
+        await loginMobile(data.session.access_token);
+      }
+
+      const profile = await apiFetch<BackendProfile>("/profiles/me");
+      if (profile?.business) {
+        setBusinessInfo({
+          id: profile.business.id,
+          name: profile.business.name,
+          tier: profile.business.tier,
+          effective_tier:
+            profile.business.effectiveTier ?? profile.business.tier ?? "FREE",
+          subscription_status: profile.business.subscriptionStatus ?? null,
+          days_remaining: Math.max(0, profile.business.daysRemaining ?? 0),
+          subscription_expires_at:
+            profile.business.subscriptionExpiresAt ?? null,
+          chain_outlet_limit: profile.business.chainOutletLimit ?? 0,
+        });
+      }
+      setNewBusinessName("");
+    } catch (err) {
+      setCreateBusinessError(
+        err instanceof Error ? err.message : "Không thể khởi tạo cửa hàng"
+      );
+    } finally {
+      setIsCreatingBusiness(false);
     }
   };
 
@@ -327,6 +403,19 @@ export default function DashboardPage() {
               <span className="h-2 w-2 rounded-full bg-green-500" />
               Hệ thống ổn định
             </div>
+
+            <button
+              onClick={() => {
+                setCreateSuccessMsg(null);
+                setCreateBusinessError(null);
+                setShowProfileModal(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-[#E0DCD5] bg-white px-3.5 py-2 text-sm font-semibold text-[#1E1E1E] transition hover:bg-[#FAF9F7] hover:border-[#E07A2F]"
+            >
+              <UserIcon className="h-4 w-4 text-[#E07A2F]" />
+              <span>Hồ sơ & Quán</span>
+            </button>
+
             <button
               onClick={handleLogout}
               disabled={busy}
@@ -344,18 +433,88 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="mb-8"
+          className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center"
         >
-          <h1 className="text-3xl font-bold text-[#1E1E1E]">
-            Xin chào,{" "}
-            {user?.user_metadata?.full_name ||
-              user?.email?.split("@")[0] ||
-              "Chủ quán"}
-          </h1>
-          <p className="mt-2 text-[#6F6B63]">
-            Quản lý yêu cầu tham gia, gói cước và tải ứng dụng SnapKO.
-          </p>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-[#1E1E1E]">
+                Xin chào,{" "}
+                {user?.user_metadata?.full_name ||
+                  user?.email?.split("@")[0] ||
+                  "Chủ quán"}
+              </h1>
+              {businessInfo?.name && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E07A2F]/30 bg-orange-50 px-3 py-1 text-xs font-bold text-[#E07A2F]">
+                  <Store className="h-3.5 w-3.5" />
+                  {businessInfo.name}
+                </span>
+              )}
+            </div>
+            <p className="mt-2 text-[#6F6B63]">
+              Quản lý yêu cầu tham gia, gói cước và cài đặt tài khoản SnapKO.
+            </p>
+          </div>
+
+          <button
+            onClick={() => {
+              setCreateSuccessMsg(null);
+              setCreateBusinessError(null);
+              setShowProfileModal(true);
+            }}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#E07A2F] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#C2410C] shadow-sm self-start md:self-auto"
+          >
+            <Plus className="h-4 w-4" />
+            Tạo thêm Quán / Hồ sơ
+          </button>
         </motion.div>
+
+        {!businessInfo && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 rounded-2xl border border-[#E07A2F]/30 bg-gradient-to-r from-orange-50 to-amber-50 p-6 shadow-sm"
+          >
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#E07A2F] text-white">
+                  <Building2 className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[#1E1E1E]">
+                    Tài khoản của bạn chưa thuộc Cửa hàng / Quán nào
+                  </h3>
+                  <p className="text-sm text-[#6F6B63]">
+                    Hãy khởi tạo tên Cửa hàng của bạn để kích hoạt đầy đủ tính năng và thanh toán gói cước.
+                  </p>
+                </div>
+              </div>
+              <form
+                onSubmit={handleCreateBusinessInDashboard}
+                className="flex flex-col gap-2 sm:flex-row sm:items-center"
+              >
+                <input
+                  type="text"
+                  value={newBusinessName}
+                  onChange={(e) => setNewBusinessName(e.target.value)}
+                  placeholder="Nhập tên quán của bạn..."
+                  required
+                  disabled={isCreatingBusiness}
+                  className="rounded-xl border border-[#E0DCD5] bg-white px-4 py-2.5 text-sm focus:border-[#E07A2F] focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={isCreatingBusiness || !newBusinessName.trim()}
+                  className="rounded-xl bg-[#E07A2F] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#C2410C] disabled:opacity-50"
+                >
+                  {isCreatingBusiness ? "Đang tạo..." : "Khởi tạo Quán"}
+                </button>
+              </form>
+            </div>
+            {createBusinessError && (
+              <p className="mt-2 text-xs text-red-600">{createBusinessError}</p>
+            )}
+          </motion.div>
+        )}
 
         <div className="mb-8 grid gap-4 md:grid-cols-3">
           <motion.div
@@ -648,6 +807,126 @@ export default function DashboardPage() {
           </aside>
         </div>
       </main>
+
+      {/* User Profile & Store Management Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-lg overflow-hidden rounded-2xl bg-white p-6 shadow-xl border border-[#E0DCD5]"
+          >
+            <div className="flex items-center justify-between border-b border-[#E0DCD5] pb-4 mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-100 text-[#E07A2F]">
+                  <UserIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[#1E1E1E]">Hồ sơ cá nhân & Cửa hàng</h3>
+                  <p className="text-xs text-[#6F6B63]">Thông tin tài khoản và quản lý Cửa hàng</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowProfileModal(false);
+                  setCreateSuccessMsg(null);
+                  setCreateBusinessError(null);
+                }}
+                className="rounded-lg p-1.5 text-[#6F6B63] hover:bg-[#FAF9F7] hover:text-[#1E1E1E]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-sm">
+              <div className="rounded-xl bg-[#FAF9F7] p-4 border border-[#E0DCD5]/60 space-y-2.5">
+                <div className="flex justify-between">
+                  <span className="text-[#6F6B63]">Họ tên:</span>
+                  <span className="font-semibold text-[#1E1E1E]">
+                    {user?.user_metadata?.full_name || "Chưa đặt tên"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#6F6B63]">Email:</span>
+                  <span className="font-semibold text-[#1E1E1E]">{user?.email}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#6F6B63]">Vai trò:</span>
+                  <span className="font-semibold text-[#E07A2F]">{profileRole || "OWNER"}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-[#E0DCD5]/60">
+                  <span className="text-[#6F6B63]">Cửa hàng hiện tại:</span>
+                  <span className="font-bold text-[#1E1E1E]">
+                    {businessInfo?.name || (businessInfo ? "Cửa hàng của tôi" : "Chưa thuộc Quán nào")}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-[#E0DCD5]">
+                <h4 className="font-bold text-[#1E1E1E] flex items-center gap-2 mb-1">
+                  <Building2 className="h-4 w-4 text-[#E07A2F]" />
+                  {businessInfo ? "Thêm / Đổi Cửa hàng mới" : "Khởi tạo Cửa hàng / Quán"}
+                </h4>
+                <p className="text-xs text-[#6F6B63] mb-3">
+                  Tạo tên Cửa hàng mới liên kết với tài khoản chủ quán này.
+                </p>
+
+                {createSuccessMsg && (
+                  <div className="mb-3 rounded-xl bg-green-50 p-3 text-xs text-green-700 border border-green-200">
+                    {createSuccessMsg}
+                  </div>
+                )}
+                {createBusinessError && (
+                  <div className="mb-3 rounded-xl bg-red-50 p-3 text-xs text-red-600 border border-red-200">
+                    {createBusinessError}
+                  </div>
+                )}
+
+                <form
+                  onSubmit={async (e) => {
+                    await handleCreateBusinessInDashboard(e);
+                    if (!createBusinessError) {
+                      setCreateSuccessMsg("Khởi tạo Cửa hàng mới thành công!");
+                    }
+                  }}
+                  className="flex flex-col gap-2.5 sm:flex-row"
+                >
+                  <input
+                    type="text"
+                    value={newBusinessName}
+                    onChange={(e) => setNewBusinessName(e.target.value)}
+                    placeholder="Nhập tên quán (ví dụ: SnapKO Cafe)..."
+                    required
+                    disabled={isCreatingBusiness}
+                    className="flex-1 rounded-xl border border-[#E0DCD5] bg-white px-3.5 py-2 text-sm focus:border-[#E07A2F] focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isCreatingBusiness || !newBusinessName.trim()}
+                    className="rounded-xl bg-[#E07A2F] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#C2410C] disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {isCreatingBusiness ? "Đang tạo..." : "Tạo Quán"}
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowProfileModal(false);
+                  setCreateSuccessMsg(null);
+                  setCreateBusinessError(null);
+                }}
+                className="rounded-xl border border-[#E0DCD5] bg-white px-5 py-2 text-sm font-semibold text-[#1E1E1E] hover:bg-[#FAF9F7]"
+              >
+                Đóng
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

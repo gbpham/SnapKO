@@ -205,6 +205,11 @@ function PricingPageContent() {
     "PENDING" | "SUCCESS" | "FAILED" | null
   >(null);
   const [error, setError] = useState<string | null>(null);
+  const [showBusinessSetupModal, setShowBusinessSetupModal] = useState(false);
+  const [businessNameInput, setBusinessNameInput] = useState("");
+  const [isCreatingBusiness, setIsCreatingBusiness] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<SubscriptionPlan | null>(null);
+  const [businessSetupError, setBusinessSetupError] = useState<string | null>(null);
 
   const paymentId = searchParams.get("paymentId");
   const isPaymentCancelled = searchParams.get("cancelled") === "true";
@@ -365,12 +370,58 @@ function PricingPageContent() {
       if (data.checkoutUrl) setPayosUrl(data.checkoutUrl);
     } catch (err) {
       const message =
-        err instanceof Error && !err.message.startsWith("apiFetch")
-          ? err.message
-          : "Không thể tạo thanh toán. Vui lòng thử lại sau.";
-      setError(message);
+        err instanceof Error ? err.message : "Không thể tạo thanh toán. Vui lòng thử lại sau.";
+      if (
+        message.includes("chưa thuộc quán nào") ||
+        message.includes("403") ||
+        message.includes("Forbidden")
+      ) {
+        setPendingPlan(plan);
+        setShowBusinessSetupModal(true);
+        setError(null);
+      } else {
+        setError(message);
+      }
     } finally {
       setPaymentLoading(false);
+    }
+  };
+
+  const handleCreateBusinessAndPay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!businessNameInput.trim()) {
+      setBusinessSetupError("Vui lòng nhập tên quán của bạn");
+      return;
+    }
+
+    setIsCreatingBusiness(true);
+    setBusinessSetupError(null);
+
+    try {
+      const { apiFetch, loginMobile } = await import("@/lib/backendClient");
+
+      await apiFetch("/businesses", {
+        method: "POST",
+        body: JSON.stringify({ name: businessNameInput.trim() }),
+      });
+
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.access_token) {
+        await loginMobile(data.session.access_token);
+      }
+
+      setShowBusinessSetupModal(false);
+      setBusinessNameInput("");
+      const targetPlan = pendingPlan;
+      setPendingPlan(null);
+      if (targetPlan) {
+        await createPayment(targetPlan);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Không thể khởi tạo quán";
+      setBusinessSetupError(msg);
+    } finally {
+      setIsCreatingBusiness(false);
     }
   };
 
@@ -659,6 +710,70 @@ function PricingPageContent() {
           {error && (
             <div className="mx-auto mt-8 max-w-md rounded-lg border border-red-200 bg-red-50 p-4 text-center text-sm text-red-600">
               {error}
+            </div>
+          )}
+
+          {showBusinessSetupModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-md rounded-2xl border border-[#E0DCD5] bg-white p-6 shadow-2xl">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#E07A2F]/10 text-[#E07A2F]">
+                    <Building2 className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-[#1E1E1E]">
+                      Thiết lập cửa hàng của bạn
+                    </h3>
+                    <p className="text-xs text-[#6F6B63]">
+                      Cần có tên Quán/Cửa hàng trước khi khởi tạo thanh toán
+                    </p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleCreateBusinessAndPay} className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-[#1E1E1E]">
+                      Tên Quán / Cửa hàng *
+                    </label>
+                    <input
+                      type="text"
+                      value={businessNameInput}
+                      onChange={(e) => setBusinessNameInput(e.target.value)}
+                      placeholder="Ví dụ: Cà phê Sài Gòn"
+                      required
+                      disabled={isCreatingBusiness}
+                      className="w-full rounded-xl border border-[#E0DCD5] px-4 py-3 text-sm focus:border-[#E07A2F] focus:outline-none"
+                    />
+                  </div>
+
+                  {businessSetupError && (
+                    <div className="rounded-lg bg-red-50 p-3 text-xs text-red-600">
+                      {businessSetupError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      disabled={isCreatingBusiness}
+                      onClick={() => {
+                        setShowBusinessSetupModal(false);
+                        setPendingPlan(null);
+                      }}
+                      className="w-1/2 rounded-xl border border-[#E0DCD5] py-3 text-sm font-semibold text-[#6F6B63] hover:bg-gray-50"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isCreatingBusiness || !businessNameInput.trim()}
+                      className="w-1/2 rounded-xl bg-[#E07A2F] py-3 text-sm font-bold text-white shadow-md hover:bg-[#C2410C] disabled:opacity-50"
+                    >
+                      {isCreatingBusiness ? "Đang tạo quán..." : "Tạo quán & Thanh toán"}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
         </div>
